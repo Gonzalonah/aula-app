@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id              Int       @id @default(autoincrement())
+  nombre          String
+  logoUrl         String?   @map("logo_url")
+  colorPrimario   String?   @map("color_primario")
+  colorSecundario String?   @map("color_secundario")
+  config          Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  userRoles          UserRole[]
+  alumnos            Alumno[]
+  cursos             Curso[]
+  materias           Materia[]
+  cuatrimestres      Cuatrimestre[]
+  cursoMaterias      CursoMateria[]
+  contenidos         Contenido[]
+  evaluaciones       Evaluacion[]
+  estadosTrayectoria EstadoTrayectoria[]
+  intensificaciones  Intensificacion[]
+  asistencias        Asistencia[]
+  justificaciones    Justificacion[]
+  comunicados        Comunicado[]
+  notificaciones     Notificacion[]
+  configuraciones    ConfiguracionTenant[]
+  auditorias         Auditoria[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  nombre       String
+  apellido     String
+  telefono     String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  userRoles              UserRole[]
+  familiares             Familiar[]
+  cursosMateria          CursoMateria[]          @relation("ProfesorCursos")
+  evaluaciones           Evaluacion[]            @relation("ProfesorEvaluaciones")
+  estadosActualizados    EstadoTrayectoria[]     @relation("EDTEEstados")
+  intensificaciones      Intensificacion[]       @relation("ProfesorIntensificaciones")
+  asistencias            Asistencia[]            @relation("RegistradorAsistencias")
+  justificacionesAprobadas Justificacion[]       @relation("AprobadorJustificaciones")
+  comunicados            Comunicado[]            @relation("EmisorComunicados")
+  comunicadoDestinatarios ComunicadoDestinatario[]
+  notificaciones         Notificacion[]
+  auditorias             Auditoria[]
+
+  @@map("users")
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique
+  descripcion String?
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id       Int     @id @default(autoincrement())
+  userId   Int     @map("user_id")
+  tenantId Int     @map("tenant_id")
+  roleId   Int     @map("role_id")
+  activo   Boolean @default(true)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId, roleId])
+  @@map("user_roles")
+}
+
+model Curso {
+  id       Int      @id @default(autoincrement())
+  tenantId Int      @map("tenant_id")
+  nombre   String
+  anio     Int?
+  turno    String?
+  activo   Boolean  @default(true)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alumnos      Alumno[]
+  cursoMateria CursoMateria[]
+
+  @@map("cursos")
+}
+
+model Alumno {
+  id              Int       @id @default(autoincrement())
+  tenantId        Int       @map("tenant_id")
+  nombre          String
+  apellido        String
+  dni             String?
+  fechaNacimiento DateTime? @map("fecha_nacimiento")
+  cursoId         Int?      @map("curso_id")
+  activo          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  curso            Curso?            @relation(fields: [cursoId], references: [id], onDelete: SetNull)
+  familiares       Familiar[]
+  evaluaciones     Evaluacion[]
+  estados          EstadoTrayectoria[]
+  intensificaciones Intensificacion[]
+  asistencias      Asistencia[]
+  justificaciones  Justificacion[]
+
+  @@map("alumnos")
+}
+
+model Familiar {
+  id         Int     @id @default(autoincrement())
+  userId     Int     @map("user_id")
+  alumnoId   Int     @map("alumno_id")
+  parentesco String?
+  activo     Boolean @default(true)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alumno Alumno @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+
+  @@map("familiares")
+}
+
+model Materia {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int      @map("tenant_id")
+  nombre        String
+  esLaboratorio Boolean  @default(false) @map("es_laboratorio")
+  activo        Boolean  @default(true)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cursoMateria CursoMateria[]
+  contenidos   Contenido[]
+
+  @@map("materias")
+}
+
+model Cuatrimestre {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @map("tenant_id")
+  nombre      String
+  fechaInicio DateTime @map("fecha_inicio")
+  fechaFin    DateTime @map("fecha_fin")
+  activo      Boolean  @default(true)
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cursoMateria CursoMateria[]
+  contenidos   Contenido[]
+  estados      EstadoTrayectoria[]
+
+  @@map("cuatrimestres")
+}
+
+model CursoMateria {
+  id             Int     @id @default(autoincrement())
+  tenantId       Int     @map("tenant_id")
+  cursoId        Int     @map("curso_id")
+  materiaId      Int     @map("materia_id")
+  profesorId     Int?    @map("profesor_id")
+  cuatrimestreId Int     @map("cuatrimestre_id")
+  activo         Boolean @default(true)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  curso        Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  materia      Materia      @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  profesor     User?        @relation("ProfesorCursos", fields: [profesorId], references: [id], onDelete: SetNull)
+  cuatrimestre Cuatrimestre @relation(fields: [cuatrimestreId], references: [id], onDelete: Cascade)
+
+  evaluaciones      Evaluacion[]
+  estados           EstadoTrayectoria[]
+  intensificaciones Intensificacion[]
+
+  @@unique([cursoId, materiaId, cuatrimestreId])
+  @@map("curso_materia")
+}
+
+model Contenido {
+  id             Int     @id @default(autoincrement())
+  tenantId       Int     @map("tenant_id")
+  materiaId      Int     @map("materia_id")
+  cuatrimestreId Int     @map("cuatrimestre_id")
+  descripcion    String
+  orden          Int?
+  activo         Boolean @default(true)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materia      Materia      @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  cuatrimestre Cuatrimestre @relation(fields: [cuatrimestreId], references: [id], onDelete: Cascade)
+
+  evaluaciones      Evaluacion[]
+  intensificaciones Intensificacion[]
+
+  @@map("contenidos")
+}
+
+model Evaluacion {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  alumnoId       Int      @map("alumno_id")
+  contenidoId    Int      @map("contenido_id")
+  cursoMateriaId Int      @map("curso_materia_id")
+  fecha          DateTime
+  tipo           String?
+  nota           Decimal? @db.Decimal(4,2)
+  observaciones  String?
+  createdById    Int?     @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alumno       Alumno       @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  contenido    Contenido    @relation(fields: [contenidoId], references: [id], onDelete: Cascade)
+  cursoMateria CursoMateria @relation(fields: [cursoMateriaId], references: [id], onDelete: Cascade)
+  creadoPor    User?        @relation("ProfesorEvaluaciones", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("evaluaciones")
+}
+
+model EstadoTrayectoria {
+  id               Int       @id @default(autoincrement())
+  tenantId         Int       @map("tenant_id")
+  alumnoId         Int       @map("alumno_id")
+  cursoMateriaId   Int       @map("curso_materia_id")
+  cuatrimestreId   Int       @map("cuatrimestre_id")
+  estado           String    // TEA, TEP, TED
+  calculadoEl      DateTime  @default(now()) @map("calculado_el")
+  actualizadoPor   Int?      @map("actualizado_por")
+  actualizadoEl    DateTime? @map("actualizado_el")
+  notasManuales    String?   @map("notas_manuales")
+  constanciaFotoUrl String?  @map("constancia_foto_url")
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alumno        Alumno       @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  cursoMateria  CursoMateria @relation(fields: [cursoMateriaId], references: [id], onDelete: Cascade)
+  cuatrimestre  Cuatrimestre @relation(fields: [cuatrimestreId], references: [id], onDelete: Cascade)
+  actualizador  User?        @relation("EDTEEstados", fields: [actualizadoPor], references: [id], onDelete: SetNull)
+
+  @@unique([alumnoId, cursoMateriaId, cuatrimestreId])
+  @@map("estados_trayectoria")
+}
+
+model Intensificacion {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  alumnoId       Int      @map("alumno_id")
+  contenidoId    Int      @map("contenido_id")
+  cursoMateriaId Int      @map("curso_materia_id")
+  fecha          DateTime
+  nota           Decimal? @db.Decimal(4,2)
+  aprobado       Boolean  @default(false)
+  observaciones  String?
+  registradoPor  Int?     @map("registrado_por")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alumno        Alumno       @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  contenido     Contenido    @relation(fields: [contenidoId], references: [id], onDelete: Cascade)
+  cursoMateria  CursoMateria @relation(fields: [cursoMateriaId], references: [id], onDelete: Cascade)
+  registrador   User?        @relation("ProfesorIntensificaciones", fields: [registradoPor], references: [id], onDelete: SetNull)
+
+  @@map("intensificaciones")
+}
+
+model Asistencia {
+  id              Int      @id @default(autoincrement())
+  tenantId        Int      @map("tenant_id")
+  alumnoId        Int      @map("alumno_id")
+  fecha           DateTime
+  tipo            String   // presente, ausente, llegada_tarde, retiro_anticipado
+  minutosTarde    Int?     @map("minutos_tarde")
+  horasAusente    Decimal? @db.Decimal(4,2) @map("horas_ausente")
+  justificado     Boolean  @default(false)
+  justificacionId Int?     @map("justificacion_id")
+  registradoPor   Int?     @map("registrado_por")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alumno         Alumno          @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  justificacion  Justificacion?  @relation(fields: [justificacionId], references: [id], onDelete: SetNull)
+  registrador    User?           @relation("RegistradorAsistencias", fields: [registradoPor], references: [id], onDelete: SetNull)
+
+  @@index([alumnoId, fecha])
+  @@index([tenantId, fecha])
+  @@map("asistencias")
+}
+
+model Justificacion {
+  id              Int       @id @default(autoincrement())
+  tenantId        Int       @map("tenant_id")
+  alumnoId        Int       @map("alumno_id")
+  fechaFalta      DateTime  @map("fecha_falta")
+  motivo          String?
+  archivoUrl      String?   @map("archivo_url")
+  estado          String    // pendiente, aprobada, rechazada
+  aprobadoPor     Int?      @map("aprobado_por")
+  fechaSolicitud  DateTime  @default(now()) @map("fecha_solicitud")
+  fechaResolucion DateTime? @map("fecha_resolucion")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alumno      Alumno       @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  aprobador   User?        @relation("AprobadorJustificaciones", fields: [aprobadoPor], references: [id], onDelete: SetNull)
+  asistencias Asistencia[]
+
+  @@map("justificaciones")
+}
+
+model Comunicado {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  emisorId       Int      @map("emisor_id")
+  tipo           String
+  asunto         String
+  cuerpo         String
+  adjuntos       Json     @default("[]")
+  estado         String   // borrador, enviado
+  fechaEnvio     DateTime? @map("fecha_envio")
+  creadoEl       DateTime @default(now()) @map("creado_el")
+  programadoPara DateTime? @map("programado_para")
+
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emisor        User                      @relation("EmisorComunicados", fields: [emisorId], references: [id], onDelete: Cascade)
+  destinatarios ComunicadoDestinatario[]
+
+  @@index([tenantId, fechaEnvio])
+  @@map("comunicados")
+}
+
+model ComunicadoDestinatario {
+  id               Int       @id @default(autoincrement())
+  comunicadoId     Int       @map("comunicado_id")
+  tipoDestinatario String    @map("tipo_destinatario")
+  referenciaId     Int?      @map("referencia_id")
+  userId           Int?      @map("user_id")
+  leido            Boolean   @default(false)
+  fechaLectura     DateTime? @map("fecha_lectura")
+  respuesta        String?
+  fechaRespuesta   DateTime? @map("fecha_respuesta")
+
+  comunicado Comunicado @relation(fields: [comunicadoId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([comunicadoId, userId])
+  @@map("comunicado_destinatarios")
+}
+
+model Notificacion {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  userId    Int      @map("user_id")
+  tipo      String?
+  titulo    String?
+  mensaje   String?
+  leida     Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, leida])
+  @@map("notificaciones")
+}
+
+model ConfiguracionTenant {
+  id          Int    @id @default(autoincrement())
+  tenantId    Int    @map("tenant_id")
+  clave       String
+  valor       Json
+  descripcion String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, clave])
+  @@map("configuracion_tenant")
+}
+
+model Auditoria {
+  id              Int      @id @default(autoincrement())
+  tenantId        Int      @map("tenant_id")
+  userId          Int?     @map("user_id")
+  accion          String
+  entidad         String?
+  entidadId       Int?     @map("entidad_id")
+  fecha           DateTime @default(now())
+  datosAnteriores Json?    @map("datos_anteriores")
+  datosNuevos     Json?    @map("datos_nuevos")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("auditoria")
+}
