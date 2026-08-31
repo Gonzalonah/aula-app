@@ -5,11 +5,13 @@ import bcrypt from 'bcryptjs'
 export async function POST(request: Request) {
   try {
     const { nombre, apellido, email, telefono, alumnoDni, parentesco } = await request.json()
+    console.log('Datos recibidos:', { nombre, apellido, email, telefono, alumnoDni, parentesco })
 
     // Buscar alumno por DNI
     const alumno = await prisma.alumno.findFirst({
       where: { dni: alumnoDni },
     })
+    console.log('Alumno encontrado:', alumno)
 
     if (!alumno) {
       return NextResponse.json({ error: 'No se encontró alumno con ese DNI' }, { status: 404 })
@@ -35,10 +37,14 @@ export async function POST(request: Request) {
         telefono,
       },
     })
+    console.log('Usuario creado:', user)
 
     // Obtener rol familia
     const rolFamilia = await prisma.role.findUnique({ where: { nombre: 'familia' } })
-    if (!rolFamilia) throw new Error('Rol familia no existe')
+    console.log('Rol familia:', rolFamilia)
+    if (!rolFamilia) {
+      return NextResponse.json({ error: 'Rol familia no existe en la base de datos' }, { status: 500 })
+    }
 
     // Asignar rol en el tenant del alumno
     await prisma.userRole.create({
@@ -58,12 +64,11 @@ export async function POST(request: Request) {
       },
     })
 
-    // TODO: Enviar email con la contraseña temporal (usar nodemailer, sendgrid, etc.)
-    console.log(`Contraseña temporal para ${email}: ${tempPassword}`)
-
-    return NextResponse.json({ message: 'Registro exitoso' })
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+    console.log('Registro exitoso')
+    // En producción no devuelvas tempPassword, solo para desarrollo
+    return NextResponse.json({ message: 'Registro exitoso', tempPassword })
+  } catch (error: any) {
+    console.error('Error en registro:', error)
+    return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 })
   }
 }
